@@ -1,52 +1,45 @@
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
-from PIL import Image, ImageFilter, ImageEnhance, ImageTk
+from PIL import Image, ImageFilter, ImageTk
 import numpy as np
 import cv2
+
+MAX_WIDTH = 800  # Maksimum lebar gambar yang akan ditampilkan
+MAX_HEIGHT = 600  # Maksimum tinggi gambar yang akan ditampilkan
 
 def add_halation_effect(image, intensity, blur_radius):
     image_np = np.array(image)
     
-    # Convert to grayscale to detect bright areas
     gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-    
-    # Apply threshold to detect bright areas
     _, bright_mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
     
-    # Create a red-tinted image for bright areas
     red_tint = np.zeros_like(image_np)
-    red_tint[:, :, 0] = bright_mask  # Red channel
-    red_tint[:, :, 1] = bright_mask * 0.2  # Slight green
-    red_tint[:, :, 2] = bright_mask * 0.2  # Slight blue
+    red_tint[:, :, 0] = bright_mask
+    red_tint[:, :, 1] = bright_mask * 0.2
+    red_tint[:, :, 2] = bright_mask * 0.2
     
-    # Apply intensity to the red-tinted areas
     bright_areas = cv2.bitwise_and(red_tint, red_tint, mask=bright_mask)
     bright_areas = bright_areas * intensity
-
-    # Convert to PIL Image for further processing
+    
     bright_image = Image.fromarray(np.uint8(np.clip(bright_areas, 0, 255)))
-    
-    # Apply Gaussian Blur to simulate halation
     blurred = bright_image.filter(ImageFilter.GaussianBlur(blur_radius))
+    merged_image = Image.blend(image, blurred, alpha=0.3)
     
-    # Merge original image with the blurred red-tinted bright areas
-    merged_image = Image.blend(image, blurred, alpha=0.5)
-    
-    # Enhance brightness and contrast for a more vivid effect
-    enhancer = ImageEnhance.Brightness(merged_image)
-    enhanced_image = enhancer.enhance(1.2)
-    
-    return enhanced_image
+    return merged_image
 
 def open_image():
     file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")])
     if file_path:
         global img, original_image
         original_image = Image.open(file_path)
+        
+        # Resize image if larger than maximum allowed size
+        original_image.thumbnail((MAX_WIDTH, MAX_HEIGHT))
+        
         img = ImageTk.PhotoImage(original_image)
-        canvas.create_image(0, 0, anchor="nw", image=img)
         canvas.config(width=img.width(), height=img.height())
+        canvas.create_image(0, 0, anchor="nw", image=img)
 
 def apply_effect():
     if original_image:
@@ -54,8 +47,9 @@ def apply_effect():
         blur_radius = blur_scale.get()
         result_image = add_halation_effect(original_image, intensity, blur_radius)
         result_img = ImageTk.PhotoImage(result_image)
+        canvas.config(width=result_img.width(), height=result_img.height())
         canvas.create_image(0, 0, anchor="nw", image=result_img)
-        canvas.img = result_img  # keep a reference to avoid garbage collection
+        canvas.img = result_img
 
 def save_image():
     if original_image:
@@ -65,19 +59,15 @@ def save_image():
             result_image = add_halation_effect(original_image, intensity_scale.get(), blur_scale.get())
             result_image.save(file_path)
 
-# Setup GUI
 root = tk.Tk()
-root.title("Halation Effect App with Red Tint")
+root.title("Responsive Halation Effect App")
 
-# Canvas for image display
-canvas = tk.Canvas(root, width=600, height=400)
+canvas = tk.Canvas(root)
 canvas.pack()
 
-# Controls frame
 controls = ttk.Frame(root)
 controls.pack(fill="x", padx=10, pady=5)
 
-# Buttons and scales
 open_button = ttk.Button(controls, text="Open Image", command=open_image)
 open_button.pack(side="left")
 
