@@ -14,33 +14,30 @@ def add_halation_effect(image, intensity, blur_radius, opacity):
     # Apply threshold to detect bright areas
     _, bright_mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
     
-    # Apply Gaussian blur on the mask to create a smooth transition
-    bright_mask = cv2.GaussianBlur(bright_mask, (21, 21), 0)
-    
-    # Normalize mask to range [0, 1] for smoother blending
-    bright_mask = bright_mask / 255.0
-    
-    # Create a copy of the image and apply a reddish tint to bright areas
-    reddish_areas = image_np.copy()
-    reddish_areas[:, :, 0] = np.minimum(reddish_areas[:, :, 0] + intensity * 80, 255)  # Increase red channel
-    reddish_areas[:, :, 1] = np.minimum(reddish_areas[:, :, 1] - intensity * 20, 255)  # Slightly decrease green channel
-    reddish_areas[:, :, 2] = np.minimum(reddish_areas[:, :, 2] - intensity * 20, 255)  # Slightly decrease blue channel
+    # Create a mask with bright areas
+    bright_areas = cv2.bitwise_and(image_np, image_np, mask=bright_mask)
 
-    # Apply Gaussian Blur to the entire image, including bright areas
-    blurred_image = Image.fromarray(np.uint8(np.clip(reddish_areas, 0, 255)))
-    blurred = blurred_image.filter(ImageFilter.GaussianBlur(blur_radius))
+    # Add a reddish tint to bright areas
+    reddish_areas = bright_areas.copy()
+    reddish_areas[:, :, 0] = np.minimum(reddish_areas[:, :, 0] + 80, 255)  # Increase red channel
+    reddish_areas[:, :, 1] = np.minimum(reddish_areas[:, :, 1] - 20, 255)  # Slightly decrease green channel
+    reddish_areas[:, :, 2] = np.minimum(reddish_areas[:, :, 2] - 20, 255)  # Slightly decrease blue channel
+
+    # Apply Gaussian Blur to the reddish areas
+    reddish_image = Image.fromarray(np.uint8(np.clip(reddish_areas, 0, 255)))
+    blurred = reddish_image.filter(ImageFilter.GaussianBlur(blur_radius))
 
     # Convert blurred image back to numpy array
     blurred_np = np.array(blurred)
 
-    # Smoothly blend the blurred reddish image into the original image based on the mask
-    final_image_np = (image_np * (1 - bright_mask[:, :, None]) + blurred_np * bright_mask[:, :, None]).astype(np.uint8)
+    # Blend the reddish blurred areas with the original image using opacity
+    combined_image_np = (image_np * (1 - opacity) + blurred_np * opacity).astype(np.uint8)
 
     # Convert back to PIL Image
-    final_image = Image.fromarray(final_image_np)
+    combined_image = Image.fromarray(combined_image_np)
 
     # Enhance brightness and contrast for a more vivid effect
-    enhancer = ImageEnhance.Brightness(final_image)
+    enhancer = ImageEnhance.Brightness(combined_image)
     enhanced_image = enhancer.enhance(1.1)
 
     enhancer = ImageEnhance.Contrast(enhanced_image)
